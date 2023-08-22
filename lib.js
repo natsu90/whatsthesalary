@@ -43,7 +43,10 @@ const getJobDetails = async (link) => {
     }
 
     // Launch the browser and open a new blank page
-    const browser = await puppeteer.launch({headless: true});
+    const browser = await puppeteer.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disabled-setupid-sandbox']
+    });
     const page = await browser.newPage();
 
     // Open the link
