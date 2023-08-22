@@ -1,7 +1,6 @@
 
-import getJobDetails from './lib.js';
+import getJobDetails, { browser } from './lib.js';
 import assert from 'assert';
-
 
 const thJobLink = 'https://th.jobsdb.com/th/en/job/full-stack-web-developer-php-laravel-manufacturing-industry-300003002905209?token=0~4aadb715-e9c0-43a9-80de-b3c8e0be1220&sectionRank=8&jobId=jobsdb-th-job-300003002905209';
 const thJob = await getJobDetails(thJobLink)
@@ -18,4 +17,5 @@ const sgJob = await getJobDetails(sgJobLink)
 
 console.log(sgJob)
 
+await browser.close();
 process.exit()

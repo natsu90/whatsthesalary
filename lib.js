@@ -3,7 +3,6 @@
 // OR
 import puppeteer from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
-
 puppeteer.use(StealthPlugin())
 
 const hiddenCompanyString = 'Company Confidential';
@@ -15,6 +14,14 @@ const supportedSites = [
     'www.jobstreet.com.sg',
     'www.jobstreet.com.my'
 ];
+
+// Launch the browser 
+const browser = await puppeteer.launch({
+    headless: true,
+    args: ['--no-sandbox', '--disabled-setupid-sandbox']
+});
+
+export { browser };
 
 const getJobDetails = async (link) => {
 
@@ -42,12 +49,18 @@ const getJobDetails = async (link) => {
             salaryParameters = ['salary', 'salary-max'];
     }
 
-    // Launch the browser and open a new blank page
-    const browser = await puppeteer.launch({
-        headless: true,
-        args: ['--no-sandbox', '--disabled-setupid-sandbox']
-    });
+    // Open a new blank page
     const page = await browser.newPage();
+
+    // Disable other resources to optimise
+    await page.setRequestInterception(true);
+    page.on('request', (req) => {
+        if (['stylesheet', 'font', 'image'].includes(req.resourceType())) {
+            req.abort();
+        } else {
+            req.continue();
+        }
+    });
 
     // Open the link
     await page.goto(link);
@@ -169,6 +182,9 @@ const getJobDetails = async (link) => {
             break;
         }
     }
+
+    // Close page after done
+    await page.close();
 
     return {
         link: url.origin + url.pathname,

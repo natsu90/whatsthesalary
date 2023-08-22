@@ -19,9 +19,9 @@ node node_modules/puppeteer/install.js
 ### Usage
 
 ```
-import getJobDetails from 'whatsthesalary';
+import getJobDetails, { browser } from 'whatsthesalary';
 
-const jobDetails = getJobDetails('https://www.jobstreet.com.my/en/job/full-stack-developer-5496381')
+const jobDetails = await getJobDetails('https://www.jobstreet.com.my/en/job/full-stack-developer-5496381')
 
 console.log(jobDetails)
 
@@ -33,6 +33,8 @@ console.log(jobDetails)
   minimumSalary: 5000,
   maximumSalary: 11000
 }
+
+await browser.close()
 
 ```
 
