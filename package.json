@@ -4,8 +4,7 @@
   "description": "",
   "main": "lib.js",
   "scripts": {
-    "test": "node test.js",
-    "postinstall": "node node_modules/puppeteer/install.js"
+    "test": "node test.js"
   },
   "repository": {
     "type": "git",
