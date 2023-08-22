@@ -1,0 +1,26 @@
+{
+  "name": "whatsthesalary",
+  "version": "1.0.0",
+  "description": "",
+  "main": "lib.js",
+  "scripts": {
+    "test": "node test.js",
+    "postinstall": "node node_modules/puppeteer/install.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/natsu90/whatsthesalary.git"
+  },
+  "author": "Sulaiman Sudirman",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/natsu90/whatsthesalary/issues"
+  },
+  "homepage": "https://github.com/natsu90/whatsthesalary#readme",
+  "dependencies": {
+    "puppeteer": "^21.1.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
+  },
+  "type": "module"
+}
