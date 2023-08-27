@@ -34,6 +34,7 @@ console.log(jobDetails)
   maximumSalary: 11000
 }
 
+browser.off('disconnected')
 await browser.close()
 
 ```

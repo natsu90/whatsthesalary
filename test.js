@@ -17,5 +17,6 @@ const sgJob = await getJobDetails(sgJobLink)
 
 console.log(sgJob)
 
+browser.off('disconnected')
 await browser.close();
 process.exit()
