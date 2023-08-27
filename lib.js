@@ -5,6 +5,8 @@ import puppeteer from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
 puppeteer.use(StealthPlugin())
 
+import { map } from 'async';
+
 const hiddenCompanyString = 'Company Confidential';
 const workPositionSelectorString = '[data-automation="detailsTitle"] div div:nth-of-type(1)';
 const companyNameSelectorString = '[data-automation="detailsTitle"] div div:nth-of-type(2)';
@@ -64,6 +66,57 @@ const browser = await puppeteer.launch({
 
 export { browser };
 
+const hasResultInRange = async (minimumValue, maximumValue, params) => {
+
+    const salarySearchUrl = params.searchUrl;
+    salarySearchUrl.searchParams.set(params.salaryParameters[0], minimumValue);
+    salarySearchUrl.searchParams.set(params.salaryParameters[1], maximumValue);
+
+    const salaryFilterUrl = salarySearchUrl.href
+    const searchPage = await browser.newPage()
+
+    await searchPage.goto(salaryFilterUrl);
+
+    let hasResult = (await searchPage.$x(`//a[contains(@href, '${params.url.pathname}')]`)).length > 0;
+
+    if (!hasResult) {
+
+        const hasPagination = (await searchPage.$x(`//select[@id='pagination']`)).length > 0;
+
+        if (hasPagination) {
+            
+            const [lastPageNumberXpath] = await searchPage.$x(`//select[@id="pagination"]/option[last()]`);
+            const lastPage = await searchPage.evaluate(el => el.innerText, lastPageNumberXpath);
+
+            for (let j = 2; j <= lastPage; j++) {
+
+                await searchPage.waitForXPath(nextButtonXpathString)
+                const [nextXpath] = await searchPage.$x(nextButtonXpathString);
+                const nextLink = await searchPage.evaluate(el => el.getAttribute('href'), nextXpath);
+                await searchPage.goto(params.url.origin + nextLink);
+
+                hasResult = (await searchPage.$x(`//a[contains(@href, '${params.url.pathname}')]`)).length > 0;
+
+                if (hasResult) {
+                    await searchPage.close()
+                    return true;
+                }
+            }
+        }
+        await searchPage.close()
+        return false;
+    }
+    await searchPage.close()
+    return true;
+}
+
+const asyncSome = async (arr, predicate) => {
+    for (let e of arr) {
+        if (await predicate(e)) return true;
+    }
+    return false;
+};
+
 const getJobDetails = async (link) => {
 
     const url = new URL(link);
@@ -86,7 +139,7 @@ const getJobDetails = async (link) => {
         default:
             minimum = 500;
             increment = 500;
-            maximum = 30000;
+            maximum = 25000;
             salaryParameters = ['salary', 'salary-max'];
     }
 
@@ -109,10 +162,10 @@ const getJobDetails = async (link) => {
     // Grab Job Basic Details
     let workPosition, companyName;
     try {
-        const workPositionSelector = await page.waitForSelector(workPositionSelectorString);
+        const workPositionSelector = await page.waitForSelector(workPositionSelectorString, 500);
         workPosition = await workPositionSelector?.evaluate(el => el.textContent);
 
-        const companyNameSelector = await page.waitForSelector(companyNameSelectorString);
+        const companyNameSelector = await page.waitForSelector(companyNameSelectorString, 500);
         companyName = await companyNameSelector?.evaluate(el => el.textContent);
     } catch (error) {
         throw new Error('Page is invalid!');
@@ -124,115 +177,102 @@ const getJobDetails = async (link) => {
     await page.type('#searchKeywordsField', searchString);
     await page.keyboard.press('Enter');
     const searchUrl = new URL(page.url());
+    await page.close()
+
+    const browserPageLimit = 10;
 
     // Finding Minimum Salary
     let minimumSalary;
     let maximumIncrement = ( maximum - minimum ) / increment;
 
+    let minimumSalaryRangeArray = [];
+
     for (let i = 0; i < maximumIncrement; i++) {
 
         minimumSalary = i*1*increment + minimum;
-
-        let salarySearchUrl = searchUrl;
-        salarySearchUrl.searchParams.set(salaryParameters[0], 0);
-        salarySearchUrl.searchParams.set(salaryParameters[1], minimumSalary);
-
-        await page.goto(salarySearchUrl.href);
-
-        let hasResult = (await page.$x(`//a[contains(@href, '${url.pathname}')]`)).length > 0;
-
-        if (!hasResult) {
-
-            const hasPagination = (await page.$x(`//select[@id='pagination']`)).length > 0;
-
-            if (hasPagination) {
-                
-                const [lastPageNumberXpath] = await page.$x(`//select[@id="pagination"]/option[last()]`);
-                const lastPage = await page.evaluate(el => el.innerText, lastPageNumberXpath);
-
-                let hasResultInPage = false;
-
-                for (let j = 2; j <= lastPage; j++) {
-
-                    await page.waitForXPath(nextButtonXpathString)
-                    const [nextXpath] = await page.$x(nextButtonXpathString);
-                    const nextLink = await page.evaluate(el => el.getAttribute('href'), nextXpath);
-                    await page.goto(url.origin + nextLink);
-
-                    hasResult = (await page.$x(`//a[contains(@href, '${url.pathname}')]`)).length > 0;
-
-                    if (hasResult) {
-                        hasResultInPage = true;
-                    }
-                }
-
-                if (hasResultInPage) {
-                    break;
-                }
-            }
-            continue;
-        }
-        break;
+        minimumSalaryRangeArray.push({0: 0, 1: minimumSalary})
     }
+
+    /**
+     * checking salary range in parallel in chunks of browserPageLimit
+     * skip further checking if found in first chunk or so
+     */ 
+    let chunked = minimumSalaryRangeArray.reduce((all,one,i) => {
+        const ch = Math.floor(i/browserPageLimit); 
+        all[ch] = [].concat((all[ch]||[]),one); 
+        return all
+     }, [])
+
+    await asyncSome(chunked, async(chunkedArray) => {
+        
+        let results = await map(chunkedArray, async (minimumSalaryRange) => {
+            
+            let hasResult = await hasResultInRange(minimumSalaryRange[0], minimumSalaryRange[1], {
+                url: url,
+                searchUrl: searchUrl,
+                salaryParameters: salaryParameters
+            })
+            
+            const returnValue = hasResult ? minimumSalaryRange[1] : null
+            return returnValue
+        })
+
+        const minimumSalaryRanges = results.filter((result) => result !== null)
+        const IsMinimumSalaryInRange = minimumSalaryRanges.length > 0
+
+        if (IsMinimumSalaryInRange) {
+            minimumSalary = Math.min.apply(Math, minimumSalaryRanges)
+            return true
+        }
+    })
 
     // Finding Maximum Salary
     maximumIncrement = ( maximum - minimumSalary ) / increment;
     let maximumSalary;
 
+    let maximumSalaryRangeArray = [];
+
     for (let i = 1; i < maximumIncrement; i++) {
 
         maximumSalary = i*1*increment + minimumSalary;
-
-        let salarySearchUrl = searchUrl;
-        salarySearchUrl.searchParams.set(salaryParameters[0], maximumSalary);
-        salarySearchUrl.searchParams.set(salaryParameters[1], maximum);
-
-        await page.goto(salarySearchUrl.href);
-
-        let hasResult = (await page.$x(`//a[contains(@href, '${url.pathname}')]`)).length > 0;
-
-        if (!hasResult) {
-
-            const hasPagination = (await page.$x(`//select[@id='pagination']`)).length > 0;
-
-            if (hasPagination) {
-
-                const [lastPageNumberXpath] = await page.$x(`//select[@id="pagination"]/option[last()]`);
-                const lastPage = await page.evaluate(name => name.innerText, lastPageNumberXpath);
-
-                let hasResultInPage = false;
-
-                for (let j = 2; j <= lastPage; j++) {
-
-                    await page.waitForXPath(nextButtonXpathString)
-                    const [nextXpath] = await page.$x(nextButtonXpathString);
-                    const nextLink = await page.evaluate(el => el.getAttribute('href'), nextXpath);
-                    await page.goto(url.origin + nextLink);
-
-                    hasResult = (await page.$x(`//a[contains(@href, '${url.pathname}')]`)).length > 0;
-
-                    if (hasResult) {
-                        hasResultInPage = true;
-                    }
-                }
-
-                if (hasResultInPage) {
-                    continue;
-                }
-            }
-            break;
-        }
+        maximumSalaryRangeArray.push({0: maximumSalary, 1: maximum})
     }
 
-    // Close page after done
-    await page.close();
+    chunked = maximumSalaryRangeArray.reduce((all,one,i) => {
+        const ch = Math.floor(i/browserPageLimit); 
+        all[ch] = [].concat((all[ch]||[]),one); 
+        return all
+     }, [])
+
+     await asyncSome(chunked, async(chunkedArray) => {
+
+         let results = await map(chunkedArray, async (maximumSalaryRange) => {
+
+            let hasResult = await hasResultInRange(maximumSalaryRange[0], maximumSalaryRange[1], {
+                url: url,
+                searchUrl: searchUrl,
+                salaryParameters: salaryParameters
+            })
+
+            const returnValue = hasResult ? maximumSalaryRange[0] : null
+            return returnValue
+        })
+ 
+        const maximumSalaryRanges = results.filter((result) => result !== null)
+        const isMaximumSalaryInRange = results.filter((result) => result === null).length > 0
+ 
+        if (isMaximumSalaryInRange) {
+            maximumSalary = Math.max.apply(Math, maximumSalaryRanges)
+            return true
+        }
+     })
 
     return {
         link: url.origin + url.pathname,
         workPosition: workPosition,
         companyName: companyName,
         minimumSalary: minimumSalary,
-        maximumSalary: maximumSalary - increment
+        maximumSalary: maximumSalary
     };
 }
 

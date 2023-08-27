@@ -17,6 +17,7 @@
   },
   "homepage": "https://github.com/natsu90/whatsthesalary#readme",
   "dependencies": {
+    "async": "^3.2.4",
     "puppeteer": "^21.1.0",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2"
