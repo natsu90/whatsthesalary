@@ -1,11 +1,10 @@
 
-// import puppeteer from 'puppeteer'; // set headless to false when this is uncomment
-// OR
-import puppeteer from 'puppeteer-extra';
+import puppeteer from 'puppeteer';
+import puppeteerExtra from 'puppeteer-extra';
 import StealthPlugin from 'puppeteer-extra-plugin-stealth';
-puppeteer.use(StealthPlugin())
-
 import { map } from 'async';
+
+const debug = true // update to false or true
 
 const hiddenCompanyString = 'Company Confidential';
 const workPositionSelectorString = '[data-automation="detailsTitle"] div div:nth-of-type(1)';
@@ -19,11 +18,22 @@ const supportedSites = [
 const __dirname = new URL('.', import.meta.url).pathname;
 
 // Launch the browser 
-let browser;
-const launchBrowser = async() => {
+let browser, puppeteerVar;
+const launchBrowser = async(debug = false) => {
 
-    browser = await puppeteer.launch({
-        headless: true,
+    let headless
+
+    if (debug) {
+        headless = false
+        puppeteerVar = puppeteer
+    } else {
+        headless = true
+        puppeteerVar = puppeteerExtra
+        puppeteerVar.use(StealthPlugin())
+    }
+
+    browser = await puppeteerVar.launch({
+        headless: headless,
         args: [
             '--no-sandbox',
             '--autoplay-policy=user-gesture-required',
@@ -71,7 +81,7 @@ const launchBrowser = async() => {
     return browser
 }
 
-browser = await launchBrowser();
+browser = await launchBrowser(debug);
 
 export { browser };
 

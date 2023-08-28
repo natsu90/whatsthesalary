@@ -4,7 +4,8 @@
   "description": "",
   "main": "lib.js",
   "scripts": {
-    "test": "node test.js"
+    "test": "node test.js",
+    "check": "node cli.js"
   },
   "repository": {
     "type": "git",
